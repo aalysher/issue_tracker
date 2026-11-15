@@ -1,0 +1,191 @@
+openapi: 3.1.0
+info:
+  title: Fieldnotes Issue Tracker API
+  version: 1.0.0
+  description: Same-origin JSON API. Authenticated writes require the tracker_session cookie and X-Requested-With: XMLHttpRequest.
+servers:
+  - url: /api/v1
+paths:
+  /auth/register:
+    post:
+      summary: Create an account and start a session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Credentials"
+      responses:
+        "201": { description: Account created }
+        "400": { description: Invalid input }
+        "409": { description: Email already registered }
+  /auth/login:
+    post:
+      summary: Start a session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Credentials"
+      responses:
+        "200": { description: Signed in }
+        "401": { description: Invalid credentials }
+  /auth/logout:
+    post:
+      security: [{ sessionCookie: [] }]
+      responses:
+        "204": { description: Session revoked }
+  /me:
+    get:
+      security: [{ sessionCookie: [] }]
+      responses:
+        "200": { description: Current account }
+        "401": { description: Not signed in }
+  /projects:
+    get:
+      security: [{ sessionCookie: [] }]
+      responses:
+        "200":
+          description: Projects owned by the current user
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Project" }
+    post:
+      security: [{ sessionCookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 120 }
+      responses:
+        "201": { description: Project created }
+  /projects/{projectID}/issues:
+    parameters:
+      - $ref: "#/components/parameters/projectID"
+    get:
+      security: [{ sessionCookie: [] }]
+      responses:
+        "200":
+          description: Issues in an owned project
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Issue" }
+    post:
+      security: [{ sessionCookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title: { type: string, minLength: 1, maxLength: 200 }
+                description: { type: string, maxLength: 10000 }
+      responses:
+        "201": { description: Issue created }
+        "404": { description: Project unavailable }
+  /issues/{issueID}:
+    parameters:
+      - $ref: "#/components/parameters/issueID"
+    patch:
+      security: [{ sessionCookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [open, in_progress, done] }
+      responses:
+        "200": { description: Issue updated }
+        "404": { description: Issue unavailable }
+  /issues/{issueID}/comments:
+    parameters:
+      - $ref: "#/components/parameters/issueID"
+    get:
+      security: [{ sessionCookie: [] }]
+      responses:
+        "200":
+          description: Comments on an issue in an owned project
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Comment" }
+    post:
+      security: [{ sessionCookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string, minLength: 1, maxLength: 4000 }
+      responses:
+        "201": { description: Comment created }
+        "404": { description: Issue unavailable }
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: tracker_session
+  parameters:
+    projectID:
+      name: projectID
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    issueID:
+      name: issueID
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  schemas:
+    Credentials:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        password: { type: string, minLength: 12, maxLength: 72 }
+    Project:
+      type: object
+      required: [id, name, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        createdAt: { type: string, format: date-time }
+    Issue:
+      type: object
+      required: [id, projectId, title, description, status, createdAt, updatedAt]
+      properties:
+        id: { type: string, format: uuid }
+        projectId: { type: string, format: uuid }
+        title: { type: string }
+        description: { type: string }
+        status: { type: string, enum: [open, in_progress, done] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    Comment:
+      type: object
+      required: [id, issueId, authorId, body, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        issueId: { type: string, format: uuid }
+        authorId: { type: string, format: uuid }
+        body: { type: string }
+        createdAt: { type: string, format: date-time }
